@@ -12,7 +12,7 @@ Light up AI routing. Hide the complexity.
 
 **LUMIN** is a lightweight, unified AI proxy SDK designed for multi-platform model calls, account pool management, and intelligent routing.
 
-It uniformly encapsulates and completely hides the protocol differences of various AI platforms such as Kiro, GeminiCLI, CodeBuddy, and Codex, and provides a consistent, simple, and stable calling interface to the outside world. This allows upper-layer businesses to focus on their core logic without caring about the underlying platform details, perfectly embodying the core concept of "Cloud Hiding" — hiding complexity in the bottom layer and leaving simplicity for businesses.
+It uniformly encapsulates and completely hides the protocol differences of various AI platforms such as Kiro, GeminiCLI and Codex, and provides a consistent, simple, and stable calling interface to the outside world. This allows upper-layer businesses to focus on their core logic without caring about the underlying platform details, perfectly embodying the core concept of "Cloud Hiding" — hiding complexity in the bottom layer and leaving simplicity for businesses.
 
 ### Core Capabilities
 
@@ -20,7 +20,7 @@ It uniformly encapsulates and completely hides the protocol differences of vario
 
 - 🧠 **Intelligent Account Pool** : Built-in multi-account management, load balancing, automatic account selection, and fault elimination to ensure proxy stability
 
-- 🔗 **Unified Proxy Client** : One-time access to support calls from multiple platforms such as Kiro, Gemini, CodeBuddy, and Codex
+- 🔗 **Unified Proxy Client** : One-time access to support calls from multiple platforms such as Kiro, Gemini and Codex
 
 - ⚡ **High Availability & Transparent Routing** : Dynamic routing, automatic retry, current limiting protection, and seamless switching to reduce business exception rates
 
