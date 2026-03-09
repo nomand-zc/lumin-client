@@ -43,6 +43,7 @@ type UsageLimiter interface {
 
 // Provider is an interface for a provider. It includes methods for generating content, generating content in a stream, refreshing tokens, and limiting usage.
 type Provider interface {
+	Type() string
 	Name() string
 	Model
 	CredentialManager

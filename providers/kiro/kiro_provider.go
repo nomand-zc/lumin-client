@@ -28,17 +28,19 @@ const (
 )
 
 type kiroProvider struct {
+	name string
 	httpClient httpclient.HTTPClient
 	options    *Options
 }
 
 // NewProvider creates a new kiro provider.
-func NewProvider(opts ...Option) *kiroProvider {
+func NewProvider(name string, opts ...Option) *kiroProvider {
 	options := &defaultOptions
 	for _, opt := range opts {
 		opt(options)
 	}
 	return &kiroProvider{
+		name:     	name,
 		options:    options,
 		httpClient: httpclient.New(httpclient.WithMiddleware(
 			httpclient.LoggingMiddleware,
@@ -48,6 +50,11 @@ func NewProvider(opts ...Option) *kiroProvider {
 
 // Name returns the name of the provider.
 func (p *kiroProvider) Name() string {
+	return p.name
+}
+
+// Type returns the type of the provider.
+func (p *kiroProvider) Type() string {
 	return providerName
 }
 

@@ -14,7 +14,7 @@ var SupportedProviders = []string{"kiro"}
 func NewProvider(name string) (providers.Provider, error) {
 	switch name {
 	case "kiro":
-		return kiroprovider.NewProvider(), nil
+		return kiroprovider.NewProvider("kiro"), nil
 	default:
 		return nil, fmt.Errorf("不支持的 provider: %q，支持的 provider 列表：%v", name, SupportedProviders)
 	}
