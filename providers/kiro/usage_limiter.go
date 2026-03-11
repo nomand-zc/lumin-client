@@ -135,6 +135,18 @@ func (p *kiroProvider) ListModels(ctx context.Context, _ credentials.Credential)
 	return p.Models(ctx)
 }
 
+// DefaultUsageRules 获取供应商默认的用量规则列表
+func (p *kiroProvider) DefaultUsageRules(_ context.Context) ([]*usagerule.UsageRule, error) {
+	return []*usagerule.UsageRule{
+		{
+			SourceType:      usagerule.SourceTypeToken,
+			TimeGranularity: usagerule.GranularityMonth,
+			WindowSize:      1,
+			Total:           50,
+		},
+	}, nil
+}
+
 // GetUsageRules 获取当前凭证的用量规则列表
 func (p *kiroProvider) GetUsageRules(ctx context.Context, creds credentials.Credential) ([]*usagerule.UsageRule, error) {
 	result, err := p.fetchUsageResp(ctx, creds)
@@ -200,7 +212,7 @@ func (p *kiroProvider) fetchUsageResp(ctx context.Context, creds credentials.Cre
 	var result kiroUsageResp
 	if err := json.Unmarshal(respBody, &result); err != nil {
 		return nil, errors.Annotatef(err, "parse get usage limits response failed, status=%d, body=%s",
-		resp.StatusCode, utils.Bytes2Str(respBody))
+			resp.StatusCode, utils.Bytes2Str(respBody))
 	}
 	return &result, nil
 }

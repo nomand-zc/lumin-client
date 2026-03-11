@@ -34,6 +34,9 @@ type UsageLimiter interface {
 	// 获取当前凭证支持的模型列表
 	ListModels(ctx context.Context, creds credentials.Credential) ([]string, error)
 
+	// DefaultUsageRules 获取供应商默认的用量规则列表
+	DefaultUsageRules(ctx context.Context) ([]*usagerule.UsageRule, error)
+
 	// GetUsageRules 获取用量规则列表
 	GetUsageRules(ctx context.Context, creds credentials.Credential) ([]*usagerule.UsageRule, error)
 
