@@ -20,12 +20,8 @@ import (
 	"github.com/nomand-zc/lumin-client/queue"
 )
 
-const (
-	DefaultProviderName = "default"
-)
-
 func init() {
-	providers.Register(NewProvider(DefaultProviderName))
+	providers.Register(NewProvider(providers.DefaultProviderName))
 }
 
 const (
