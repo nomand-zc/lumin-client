@@ -43,35 +43,55 @@ func (b *CurrentMessageBuilder) Build(ctx *BuildContext) error {
 			}
 		}
 
+		// 如果最后多条消息都是 tool 角色，收集它们作为 currentToolResults
+		// 同时从 history 中找到这些连续 tool 消息之前的 tool 消息也一起收集
+		if lastMsg.Role == providers.RoleTool {
+			// 从最后一条往前扫描，收集连续的 tool 消息
+			toolStartIdx := totalMessages - 1
+			for toolStartIdx > 0 && messages[toolStartIdx-1].Role == providers.RoleTool {
+				toolStartIdx--
+			}
+			// 收集所有尾部连续的 tool 消息作为 currentToolResults
+			for i := toolStartIdx; i < totalMessages; i++ {
+				msg := messages[i]
+				currentToolResults = append(currentToolResults, types.ToolResult{
+					ToolUseId: msg.ToolID,
+					Status:    "success",
+					Content:   []types.ToolResultContent{{Text: msg.Content}},
+				})
+			}
+		}
+
+		// 合并从 HistoryBuilder 传来的未消费的 PendingToolResults
+		if len(ctx.PendingToolResults) > 0 {
+			currentToolResults = append(ctx.PendingToolResults, currentToolResults...)
+			ctx.PendingToolResults = nil // 清空，避免重复处理
+		}
+
 		// 解析最后一条 user 消息的内容
-		if len(lastMsg.ContentParts) > 0 {
-			for _, part := range lastMsg.ContentParts {
-				switch part.Type {
-				case providers.ContentTypeText:
-					if part.Text != nil {
-						contentBuilder.WriteString(*part.Text)
-					}
-				case providers.ContentTypeImage:
-					if part.Image != nil {
-						img := ConvertImage(part.Image)
-						if img != nil {
-							currentImages = append(currentImages, *img)
+		if lastMsg.Role != providers.RoleTool {
+			if len(lastMsg.ContentParts) > 0 {
+				for _, part := range lastMsg.ContentParts {
+					switch part.Type {
+					case providers.ContentTypeText:
+						if part.Text != nil {
+							contentBuilder.WriteString(*part.Text)
+						}
+					case providers.ContentTypeImage:
+						if part.Image != nil {
+							img := ConvertImage(part.Image)
+							if img != nil {
+								currentImages = append(currentImages, *img)
+							}
 						}
 					}
 				}
+			} else {
+				contentBuilder.WriteString(lastMsg.Content)
 			}
-		} else if lastMsg.Role == providers.RoleTool {
-			// RoleTool 消息作为 toolResult
-			currentToolResults = append(currentToolResults, types.ToolResult{
-				ToolUseId: lastMsg.ToolID,
-				Status:    "success",
-				Content:   []types.ToolResultContent{{Text: lastMsg.Content}},
-			})
-		} else {
-			contentBuilder.WriteString(lastMsg.Content)
 		}
 
-		// content 兆底
+		// content 兜底
 		if contentBuilder.Len() == 0 {
 			if len(currentToolResults) > 0 {
 				contentBuilder.WriteString("Tool results provided.")

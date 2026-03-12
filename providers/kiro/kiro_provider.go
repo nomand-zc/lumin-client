@@ -132,10 +132,17 @@ func (p *kiroProvider) GenerateContentStream(ctx context.Context,
 	for key, value := range req.Header {
 		request.Header.Set(key, value)
 	}
-	request.Header.Set("Accept", "text/event-stream")
 	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", kiroCreds.AccessToken))
 	request.Header.Set("amz-sdk-invocation-id", inv.ID)
-	// TODO: 需要根据creds生成稳定可靠的机器码，用于生成amz-sdk-invocation-id与x-amz-user-agent等信息
+
+	// 基于凭证信息生成稳定的动态指纹（User-Agent / x-amz-user-agent 等）
+	accountKey := GetAccountKey(kiroCreds.ClientID, kiroCreds.RefreshToken)
+	if accountKey == "" {
+		accountKey = GenerateAccountKey(kiroCreds.AccessToken)
+	}
+	fp := GlobalFingerprintManager().GetFingerprint(accountKey)
+	request.Header.Set("User-Agent", fp.BuildUserAgent())
+	request.Header.Set("x-amz-user-agent", fp.BuildAmzUserAgent())
 
 	// 3. 发送请求, 并检查状态码
 	resp, err := p.httpClient.Do(request)
@@ -158,7 +165,7 @@ func (p *kiroProvider) GenerateContentStream(ctx context.Context,
 
 func (p *kiroProvider) handleStreamEvent(ctx context.Context, inv *providers.Invocation,
 	respBody io.ReadCloser) queue.Consumer[*providers.Response] {
-chainQueue := queue.New[*providers.Response](defaultQueueSize)
+	chainQueue := queue.New[*providers.Response](defaultQueueSize)
 	decoder := eventstream.NewDecoder()
 	payloadBuf := make([]byte, defaultPayloadBufSize)
 	var buf bytes.Buffer
@@ -176,6 +183,9 @@ chainQueue := queue.New[*providers.Response](defaultQueueSize)
 		var collectedUsage providers.Usage
 		collectedUsage.PromptTokens = inv.Usage.PromptTokens
 		var firstErr error
+		// 跟踪上游返回的 stop_reason 和是否有工具调用
+		var upstreamFinishReason string
+		var hasToolCalls bool
 
 		for {
 			// 重置 payloadBuf 以复用底层数组
@@ -199,19 +209,72 @@ chainQueue := queue.New[*providers.Response](defaultQueueSize)
 				continue
 			}
 
-			// 如果是用量统计信息事件，收集起来而不直接发送
+			// 计算消耗token
+			// if completionTokens, err := p.options.tokenConter.CountTokens(ctx, result.Message);
+			// err == nil {
+			// 	collectedUsage.PromptTokens += completionTokens
+			// }
+			collectedUsage.CompletionTokens += result.Usage.CompletionTokens
+			// 检测到内联错误时，发送错误响应并终止流
+			if result.Error != nil && result.Error.Message != "" {
+				chainQueue.Push(ctx, result)
+				firstErr = fmt.Errorf("kiro API error: %s", result.Error.Message)
+				break
+			}
+
+			// 收集用量统计信息（metering/metadata 事件）
 			if msg.IsMetricMessage() && result.Usage != nil {
 				collectedUsage.Credit = result.Usage.Credit
 			}
+			if msg.IsMetadataMessage() && result.Usage != nil {
+				// metadata 事件包含精确的 token 用量
+				if result.Usage.CompletionTokens > 0 {
+					collectedUsage.CompletionTokens = result.Usage.CompletionTokens
+				}
+				if result.Usage.PromptTokens > 0 {
+					collectedUsage.PromptTokens = result.Usage.PromptTokens
+				}
+				if result.Usage.TotalTokens > 0 {
+					collectedUsage.TotalTokens = result.Usage.TotalTokens
+				}
+				if result.Usage.PromptTokensDetails.CacheReadTokens > 0 {
+					collectedUsage.PromptTokensDetails.CacheReadTokens = result.Usage.PromptTokensDetails.CacheReadTokens
+					collectedUsage.PromptTokensDetails.CachedTokens = result.Usage.PromptTokensDetails.CachedTokens
+				}
+			}
+
+			// 从每个 response 中收集 finish_reason（可能来自 assistantResponseEvent 或 messageStopEvent）
+			for _, choice := range result.Choices {
+				if choice.FinishReason != nil && *choice.FinishReason != "" {
+					upstreamFinishReason = *choice.FinishReason
+				}
+			}
+
+			// 跟踪是否有工具调用
+			if result.IsToolCallResponse() {
+				hasToolCalls = true
+			}
 
 			if msg.ShouldSendMessage() {
-chainQueue.Push(ctx, result)
+				chainQueue.Push(ctx, result)
+			}
+		}
+
+		// 确定最终 finish_reason
+		// 优先级：上游 stop_reason > 工具调用检测 > 默认 "stop"
+		finishReason := upstreamFinishReason
+		if finishReason == "" {
+			if hasToolCalls {
+				finishReason = "tool_calls"
+			} else {
+				finishReason = "stop"
 			}
 		}
 
 		// 发送带有 usage 信息的 stop 响应
-		collectedUsage.TotalTokens = collectedUsage.PromptTokens + collectedUsage.CompletionTokens
-		finishReason := "stop"
+		if collectedUsage.TotalTokens == 0 {
+			collectedUsage.TotalTokens = collectedUsage.PromptTokens + collectedUsage.CompletionTokens
+		}
 		finalResp := providers.NewResponse(ctx,
 			providers.WithDone(true),
 			providers.WithIsPartial(false),
@@ -221,7 +284,7 @@ chainQueue.Push(ctx, result)
 				FinishReason: &finishReason,
 			}),
 		)
-chainQueue.Push(ctx, finalResp)
+		chainQueue.Push(ctx, finalResp)
 	}()
 
 	return chainQueue

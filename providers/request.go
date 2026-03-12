@@ -47,6 +47,10 @@ type Request struct {
 	// Header 允许调用者设置自定义的动态 Headers 信息，会在请求上游时附加到 HTTP 请求头中。
 	Header map[string]string `json:"-"`
 
+	// Metadata 允许协议层传递额外的元数据信息（如 tool_choice、response_format 等）
+	// 这些信息可能被 provider 层消费来注入特定的行为。
+	Metadata map[string]any `json:"-"`
+
 	// Model is the model name to use for this request.
 	// If empty, the provider's default model will be used.
 	Model string `json:"model,omitempty"`

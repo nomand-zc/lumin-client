@@ -17,9 +17,10 @@ func ConvertRequest(ctx context.Context, req *providers.Request) (*KiroRequest, 
 	}
 
 	bCtx := &builder.BuildContext{
-		Ctx:     ctx,
-		Req:     req,
-		ModelId: req.Model,
+		Ctx:      ctx,
+		Req:      req,
+		ModelId:  req.Model,
+		Metadata: req.Metadata,
 	}
 
 	// 流水线：各阶段按序执行

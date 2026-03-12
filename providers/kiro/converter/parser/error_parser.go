@@ -22,6 +22,7 @@ func (p *errorParser) EventType() string   { return "" }
 func (p *errorParser) Parse(ctx context.Context, msg *StreamMessage, opts ...OptionFunc) (*providers.Response, error) {
 	var errorData struct {
 		Type    string `json:"__type"`
+		Type2   string `json:"_type"`
 		Message string `json:"message"`
 	}
 
@@ -32,11 +33,17 @@ func (p *errorParser) Parse(ctx context.Context, msg *StreamMessage, opts ...Opt
 		}
 	}
 
+	// 兼容 AWS 两种格式: __type 和 _type
+	errType := errorData.Type
+	if errType == "" {
+		errType = errorData.Type2
+	}
+
 	return providers.NewResponse(ctx,
 		providers.WithResponseError(&providers.ResponseError{
 			Message: errorData.Message,
 			Type:    "error",
-			Code:    utils.ToPtr(errorData.Type),
+			Code:    utils.ToPtr(errType),
 		}),
 	), nil
 }

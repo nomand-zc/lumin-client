@@ -1,15 +1,19 @@
 package builder
 
 import (
+	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/nomand-zc/lumin-client/providers"
 	"github.com/nomand-zc/lumin-client/providers/kiro/converter/builder/types"
 )
 
 const (
-	// maxDescriptionLength 工具描述最大长度
-	maxDescriptionLength = 9216
+	// maxDescriptionLength 工具描述最大长度（Kiro API 限制 10240，留余量给 "..."）
+	maxDescriptionLength = 10237
+	// maxToolNameLength 工具名称最大长度（Kiro API 限制 64 字符）
+	maxToolNameLength = 64
 )
 
 // placeholderTool 是当无可用工具时使用的占位工具
@@ -58,19 +62,27 @@ func buildKiroTools(tools []providers.Tool) []types.Tool {
 		return []types.Tool{placeholderTool}
 	}
 
-	// 过滤空描述 + 截断超长描述
+	// 截断工具名称 + 空描述兜底 + 截断超长描述
 	kiroTools := make([]types.Tool, 0, len(filtered))
 	for _, tool := range filtered {
+		name := shortenToolNameIfNeeded(tool.Name)
+
+		// 空描述时自动填充默认值（Kiro API 要求非空描述）
 		desc := tool.Description
 		if strings.TrimSpace(desc) == "" {
-			continue
+			desc = fmt.Sprintf("Tool: %s", name)
 		}
 		if len(desc) > maxDescriptionLength {
-			desc = desc[:maxDescriptionLength] + "..."
+			// 安全截断：确保不截断 UTF-8 多字节字符
+			truncLen := maxDescriptionLength - 30
+			for truncLen > 0 && !utf8.RuneStart(desc[truncLen]) {
+				truncLen--
+			}
+			desc = desc[:truncLen] + "... (description truncated)"
 		}
 		kiroTools = append(kiroTools, types.Tool{
 			ToolSpecification: types.ToolSpecification{
-				Name:        tool.Name,
+				Name:        name,
 				Description: desc,
 				InputSchema: types.InputSchema{Json: ConvertSchema(&tool.Parameters)},
 			},
@@ -82,4 +94,25 @@ func buildKiroTools(tools []providers.Tool) []types.Tool {
 	}
 
 	return kiroTools
+}
+
+// shortenToolNameIfNeeded 截断超过 64 字符的工具名称。
+// MCP 工具通常有较长的名称，如 "mcp__server-name__tool-name"。
+// 尽量保留 "mcp__" 前缀和最后一个分段。
+func shortenToolNameIfNeeded(name string) string {
+	if len(name) <= maxToolNameLength {
+		return name
+	}
+	// 对于 MCP 工具，尝试保留前缀和最后一段
+	if strings.HasPrefix(name, "mcp__") {
+		idx := strings.LastIndex(name, "__")
+		if idx > 0 {
+			cand := "mcp__" + name[idx+2:]
+			if len(cand) > maxToolNameLength {
+				return cand[:maxToolNameLength]
+			}
+			return cand
+		}
+	}
+	return name[:maxToolNameLength]
 }

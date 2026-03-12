@@ -442,16 +442,11 @@ func TestConvertRequest_LastAssistantMovedToHistory(t *testing.T) {
 	}
 }
 
-// TestConvertRequest_AutoInsertContinueInHistory history 末尾为 user 消息时，应自动插入 AssistantResponseMessage{Content:"Continue"}
-// 构造场景：user + assistant + user（history 中有 user 消息，且末尾为 user 消息），最后一条 user 消息作为 currentMessage
-// 此时 history 末尾是 user 消息，应自动插入 AssistantResponseMessage{Content:"Continue"}
+// TestConvertRequest_AutoInsertContinueInHistory tool 消息被聚合为 currentToolResults
+// 场景：user + assistant + tool + user
+// tool 消息作为 pendingToolResults 传给 CurrentMessageBuilder，不单独进入 history
+// history 末尾应为 assistant("助手回复")，tool_result 被放入 currentToolResults
 func TestConvertRequest_AutoInsertContinueInHistory(t *testing.T) {
-	// 构造：system + user + user + assistant + user
-	// preprocessMessages 后：system + user(合并) + assistant + user
-	// 去掉 system 后：user(合并) + assistant + user
-	// history 包含：user(合并) + assistant，末尾为 assistant，不触发自动插入
-	// 需要构造 history 末尾为 user 的场景：
-	// user + tool + user（tool 消息在 history 中作为 UserInputMessage，末尾为 user 类型）
 	req := newReq("claude-sonnet-4.5",
 		makeUserMsg("第一条用户消息"),
 		makeAssistantMsg("助手回复"),
@@ -469,12 +464,24 @@ func TestConvertRequest_AutoInsertContinueInHistory(t *testing.T) {
 	if len(history) == 0 {
 		t.Fatal("期望 history 非空")
 	}
-	// history 末尾应为 AssistantResponseMessage{Content:"Continue"}（因为 tool 消息作为 UserInputMessage 在 history 末尾）
+	// history 末尾应为 AssistantResponseMessage("助手回复")
+	// tool 消息被聚合到 currentToolResults，不再单独进入 history
 	lastHistoryItem := history[len(history)-1]
 	if lastHistoryItem.AssistantResponseMessage == nil {
 		t.Errorf("期望 history 末尾为 AssistantResponseMessage，实际 %+v", lastHistoryItem)
-	} else if lastHistoryItem.AssistantResponseMessage.Content != "Continue" {
-		t.Errorf("期望自动插入的 assistant 内容为 Continue，实际 %q", lastHistoryItem.AssistantResponseMessage.Content)
+	} else if lastHistoryItem.AssistantResponseMessage.Content != "助手回复" {
+		t.Errorf("期望 history 末尾 assistant 内容为 '助手回复'，实际 %q", lastHistoryItem.AssistantResponseMessage.Content)
+	}
+	// tool_result 应被放入 currentToolResults
+	ctx := result.ConversationState.CurrentMessage.UserInputMessage.UserInputMessageContext
+	if ctx == nil {
+		t.Fatal("期望 UserInputMessageContext 非 nil")
+	}
+	if len(ctx.ToolResults) == 0 {
+		t.Fatal("期望 ToolResults 非空")
+	}
+	if ctx.ToolResults[0].ToolUseId != "tool-id" {
+		t.Errorf("期望 ToolResult.ToolUseId=tool-id，实际 %s", ctx.ToolResults[0].ToolUseId)
 	}
 }
 
@@ -744,7 +751,7 @@ func TestBuildKiroTools_AllFilteredFallback(t *testing.T) {
 	}
 }
 
-// TestBuildKiroTools_EmptyDescription 工具描述为空或纯空白，应被过滤
+// TestBuildKiroTools_EmptyDescription 工具描述为空或纯空白，应自动填充默认描述而非过滤
 func TestBuildKiroTools_EmptyDescription(t *testing.T) {
 	tools := []providers.Tool{
 		makeTool("tool_empty_desc", ""),
@@ -752,9 +759,17 @@ func TestBuildKiroTools_EmptyDescription(t *testing.T) {
 		makeTool("tool_valid", "有效描述"),
 	}
 	result := buildKiroTools(tools)
+	// 空描述工具应被保留并填充默认描述
 	for _, t2 := range result {
-		if t2.ToolSpecification.Name == "tool_empty_desc" || t2.ToolSpecification.Name == "tool_whitespace_desc" {
-			t.Errorf("空描述工具 %s 应被过滤", t2.ToolSpecification.Name)
+		if t2.ToolSpecification.Name == "tool_empty_desc" {
+			if t2.ToolSpecification.Description != "Tool: tool_empty_desc" {
+				t.Errorf("空描述工具应填充默认描述，实际: %s", t2.ToolSpecification.Description)
+			}
+		}
+		if t2.ToolSpecification.Name == "tool_whitespace_desc" {
+			if t2.ToolSpecification.Description != "Tool: tool_whitespace_desc" {
+				t.Errorf("空白描述工具应填充默认描述，实际: %s", t2.ToolSpecification.Description)
+			}
 		}
 	}
 	found := false
@@ -769,7 +784,7 @@ func TestBuildKiroTools_EmptyDescription(t *testing.T) {
 	}
 }
 
-// TestBuildKiroTools_TruncateDescription 描述长度超过 9216，应截断为 9216 字符并追加 "..."
+// TestBuildKiroTools_TruncateDescription 描述长度超过最大限制，应截断并追加截断后缀
 func TestBuildKiroTools_TruncateDescription(t *testing.T) {
 	longDesc := strings.Repeat("a", maxDescriptionLength+100)
 	tools := []providers.Tool{makeTool("my_tool", longDesc)}
@@ -778,12 +793,13 @@ func TestBuildKiroTools_TruncateDescription(t *testing.T) {
 		t.Fatal("期望返回工具列表非空")
 	}
 	desc := result[0].ToolSpecification.Description
-	expectedLen := maxDescriptionLength + 3 // "..." 3 个字符
-	if len(desc) != expectedLen {
-		t.Errorf("期望描述长度 %d，实际 %d", expectedLen, len(desc))
+	// 截断后应以 "... (description truncated)" 结尾
+	if !strings.HasSuffix(desc, "... (description truncated)") {
+		t.Error("期望描述以 '... (description truncated)' 结尾")
 	}
-	if !strings.HasSuffix(desc, "...") {
-		t.Error("期望描述以 ... 结尾")
+	// 截断后的总长度应小于原始描述长度
+	if len(desc) >= len(longDesc) {
+		t.Errorf("截断后描述长度 %d 不应大于等于原始描述长度 %d", len(desc), len(longDesc))
 	}
 }
 
@@ -1097,9 +1113,9 @@ func TestConvertRequest_AssistantWithToolCall_ThenToolResult(t *testing.T) {
 }
 
 // TestConvertRequest_ConsecutiveUserMessages_AutoContinue
-// 验证：当 history 末尾为 user 类型消息（非 assistant）时，自动补充 AssistantResponseMessage{Content:"Continue"}
-// 场景：user + assistant + user + user（最后两条 user 被合并为一条，history 末尾为 assistant，不触发）
-// 改为：user + assistant + tool + user，tool 消息在 history 中作为 UserInputMessage，末尾为 user 类型，触发自动补充
+// 验证：tool 消息被正确聚合到 currentToolResults
+// 场景：user + assistant + tool + user，tool 消息通过 pendingToolResults 传给 CurrentMessageBuilder
+// history 末尾为 assistant("助手回复")，tool_result 被放入 currentToolResults
 func TestConvertRequest_ConsecutiveUserMessages_AutoContinue(t *testing.T) {
 	req := newReq("claude-sonnet-4.5",
 		makeUserMsg("第一条"),
@@ -1120,11 +1136,24 @@ func TestConvertRequest_ConsecutiveUserMessages_AutoContinue(t *testing.T) {
 		t.Fatal("期望 history 非空")
 	}
 
-	// history 末尾应为 AssistantResponseMessage{Content:"Continue"}（tool 消息作为 UserInputMessage 在 history 末尾，触发自动补充）
+	// history 末尾应为 AssistantResponseMessage("助手回复")
+	// tool 消息被聚合到 currentToolResults，不再单独进入 history
 	lastItem := history[len(history)-1]
 	if lastItem.AssistantResponseMessage == nil {
 		t.Errorf("期望 history 末尾为 AssistantResponseMessage，实际 %+v", lastItem)
-	} else if lastItem.AssistantResponseMessage.Content != "Continue" {
-		t.Errorf("期望自动补充的 assistant 内容为 Continue，实际 %q", lastItem.AssistantResponseMessage.Content)
+	} else if lastItem.AssistantResponseMessage.Content != "助手回复" {
+		t.Errorf("期望 history 末尾 assistant 内容为 '助手回复'，实际 %q", lastItem.AssistantResponseMessage.Content)
+	}
+
+	// tool_result 应被放入 currentToolResults
+	ctx := result.ConversationState.CurrentMessage.UserInputMessage.UserInputMessageContext
+	if ctx == nil {
+		t.Fatal("期望 UserInputMessageContext 非 nil")
+	}
+	if len(ctx.ToolResults) == 0 {
+		t.Fatal("期望 ToolResults 非空")
+	}
+	if ctx.ToolResults[0].ToolUseId != "tool-id-x" {
+		t.Errorf("期望 ToolResult.ToolUseId=tool-id-x，实际 %s", ctx.ToolResults[0].ToolUseId)
 	}
 }

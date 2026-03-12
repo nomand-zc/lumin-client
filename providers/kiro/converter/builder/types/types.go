@@ -10,13 +10,24 @@ type Request struct {
 	ConversationState ConversationState `json:"conversationState"`
 	// ProfileArn 仅在 social 认证方式下存在
 	ProfileArn string `json:"profileArn,omitempty"`
+	// InferenceConfig 推理参数配置（maxTokens、temperature、topP）
+	InferenceConfig *InferenceConfig `json:"inferenceConfig,omitempty"`
+}
+
+// InferenceConfig 推理参数配置
+type InferenceConfig struct {
+	MaxTokens   int     `json:"maxTokens,omitempty"`
+	Temperature float64 `json:"temperature,omitempty"`
+	TopP        float64 `json:"topP,omitempty"`
 }
 
 // ConversationState 描述当前对话状态
 type ConversationState struct {
-	ChatTriggerType string         `json:"chatTriggerType"`
-	ConversationId  string         `json:"conversationId"`
-	CurrentMessage  CurrentMessage `json:"currentMessage"`
+	AgentContinuationId string         `json:"agentContinuationId,omitempty"`
+	AgentTaskType       string         `json:"agentTaskType,omitempty"`
+	ChatTriggerType     string         `json:"chatTriggerType"`
+	ConversationId      string         `json:"conversationId"`
+	CurrentMessage      CurrentMessage `json:"currentMessage"`
 	// History 仅在非空时存在（API 不接受空数组）
 	History []HistoryItem `json:"history,omitempty"`
 }

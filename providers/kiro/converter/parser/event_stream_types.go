@@ -38,6 +38,24 @@ const (
 	// 兼容旧格式
 	EventTypeAssistantResponseEvent = "assistantResponseEvent"
 	EventTypeToolUseEvent           = "toolUseEvent"
+
+	// Kiro 原生事件类型
+	EventTypeReasoningContentEvent = "reasoningContentEvent"
+	EventTypeMessageMetadataEvent  = "messageMetadataEvent"
+	EventTypeMetadataEvent         = "metadataEvent"
+	EventTypeMessageStopEvent      = "messageStopEvent"
+	EventTypeInvalidStateEvent     = "invalidStateEvent"
+	EventTypeFollowupPromptEvent   = "followupPromptEvent"
+	EventTypeSupplementaryWebLinks = "supplementaryWebLinksEvent"
+
+	// 错误事件类型（Kiro API 可能以 event 类型返回错误）
+	EventTypeError                  = "error"
+	EventTypeException              = "exception"
+	EventTypeInternalServerException = "internalServerException"
+
+	// 用量事件类型
+	EventTypeUsageEvent = "usageEvent"
+	EventTypeUsage      = "usage"
 )
 
 // StreamMessage 流式消息
@@ -82,9 +100,17 @@ func (m StreamMessage) IsContextUsageMessage() bool {
 	return m.MessageType() == MessageTypeEvent && m.EventType() == EventTypeContextUsageEvent
 }
 
+// IsMetadataMessage 是否为元数据消息（包含 token usage 等信息）
+func (m StreamMessage) IsMetadataMessage() bool {
+	et := m.EventType()
+	return m.MessageType() == MessageTypeEvent &&
+		(et == EventTypeMessageMetadataEvent || et == EventTypeMetadataEvent ||
+			et == EventTypeSupplementaryWebLinks || et == EventTypeUsageEvent || et == EventTypeUsage)
+}
+
 // ShouldSendMessage 是否应该发送消息
 func (m StreamMessage) ShouldSendMessage() bool {
-	return !m.IsMetricMessage() && !m.IsContextUsageMessage() && len(m.Payload) > 0
+	return !m.IsMetricMessage() && !m.IsContextUsageMessage() && !m.IsMetadataMessage() && len(m.Payload) > 0
 }
 
 // String 消息字符串

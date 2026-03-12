@@ -48,12 +48,14 @@ func preprocessMessages(messages []providers.Message) []providers.Message {
 	}
 
 	// Step 2: 合并相邻相同 role 的消息
+	// 注意：tool 消息不参与合并，因为每条 tool 消息有独立的 ToolID，合并会丢失
 	merged := []providers.Message{result[0]}
 	for i := 1; i < len(result); i++ {
 		cur := result[i]
 		prev := &merged[len(merged)-1]
 
-		if cur.Role != prev.Role {
+		// 不同 role 或 tool 角色消息不合并
+		if cur.Role != prev.Role || cur.Role == providers.RoleTool {
 			merged = append(merged, cur)
 			continue
 		}

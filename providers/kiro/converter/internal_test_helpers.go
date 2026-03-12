@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	// maxDescriptionLength 工具描述最大长度（与 builder 包保持一致）
-	maxDescriptionLength = 9216
+	// maxDescriptionLength 工具描述最大长度（与 builder 包保持一致，Kiro API 限制 10240）
+	maxDescriptionLength = 10237
 )
 
 // preprocessMessages 包装 builder.PreprocessBuilder 的内部逻辑，供测试使用

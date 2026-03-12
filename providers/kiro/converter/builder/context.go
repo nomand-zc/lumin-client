@@ -11,9 +11,10 @@ import (
 // 每个 MessageBuilder 从中读取上一阶段的输出，并将本阶段的结果写入其中
 type BuildContext struct {
 	// 输入
-	Ctx     context.Context
-	Req     *providers.Request
-	ModelId string
+	Ctx      context.Context
+	Req      *providers.Request
+	ModelId  string
+	Metadata map[string]any
 
 	// 阶段 1：预处理后的消息列表
 	Messages []providers.Message
@@ -31,6 +32,10 @@ type BuildContext struct {
 	CurrentContent     string
 	CurrentImages      []types.Image
 	CurrentToolResults []types.ToolResult
+
+	// PendingToolResults 是 HistoryBuilder 阶段未被消费的 tool_result
+	// 这些 tool_result 来自最后消息之前的连续 tool 消息，需要传递给 CurrentMessageBuilder
+	PendingToolResults []types.ToolResult
 
 	// Done 为 true 时，流水线提前终止，ConvertRequest 返回 nil
 	Done bool

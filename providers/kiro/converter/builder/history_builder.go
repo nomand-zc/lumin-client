@@ -11,6 +11,11 @@ import (
 const (
 	// keepImageThreshold 保留最近 N 条历史消息中的图片
 	keepImageThreshold = 5
+	// kiroMaxHistoryMessages 历史消息最大条数，防止超长历史导致 Kiro API 报错
+	kiroMaxHistoryMessages = 50
+	// defaultAssistantContent Kiro API 要求 assistant 消息内容非空时的最小兜底值
+	// 使用 "." 而非有语义的句子，避免模型模仿回显
+	defaultAssistantContent = "."
 )
 
 // HistoryBuilder 负责构建历史消息列表：
@@ -54,7 +59,10 @@ func (b *HistoryBuilder) Build(ctx *BuildContext) error {
 	}
 
 	// 构建历史消息（除最后一条之外的所有消息）
+	// 使用 pendingToolResults 机制聚合连续的 tool 消息
 	totalMessages := len(messages)
+	var pendingToolResults []types.ToolResult
+
 	for i := startIndex; i < totalMessages-1; i++ {
 		msg := messages[i]
 		// 计算距末尾的距离（从后往前数，最后一条消息距离为 0）
@@ -62,14 +70,57 @@ func (b *HistoryBuilder) Build(ctx *BuildContext) error {
 		shouldKeepImages := distanceFromEnd <= keepImageThreshold
 
 		switch msg.Role {
-		case providers.RoleUser, providers.RoleTool:
+		case providers.RoleTool:
+			// tool 消息先收集到 pendingToolResults 中，等后续 user 消息时一起合并
+			pendingToolResults = append(pendingToolResults, types.ToolResult{
+				ToolUseId: msg.ToolID,
+				Status:    "success",
+				Content:   []types.ToolResultContent{{Text: msg.Content}},
+			})
+
+		case providers.RoleUser:
 			userInputMsg := BuildHistoryUserMessage(msg, modelId, shouldKeepImages)
+			// 合并 pendingToolResults
+			if len(pendingToolResults) > 0 {
+				if userInputMsg.UserInputMessageContext == nil {
+					userInputMsg.UserInputMessageContext = &types.UserInputMessageContext{}
+				}
+				userInputMsg.UserInputMessageContext.ToolResults = append(
+					pendingToolResults, userInputMsg.UserInputMessageContext.ToolResults...)
+				pendingToolResults = nil
+			}
 			history = append(history, types.HistoryItem{UserInputMessage: &userInputMsg})
+
 		case providers.RoleAssistant:
+			// 如果 assistant 消息前有未消费的 pendingToolResults，
+			// 创建一条合成 user 消息来承载这些 tool_result
+			if len(pendingToolResults) > 0 {
+				syntheticUserMsg := types.UserInputMessage{
+					Content: "Tool results provided.",
+					ModelId: modelId,
+					Origin:  originAIEditor,
+					UserInputMessageContext: &types.UserInputMessageContext{
+						ToolResults: pendingToolResults,
+					},
+				}
+				history = append(history, types.HistoryItem{UserInputMessage: &syntheticUserMsg})
+				pendingToolResults = nil
+			}
 			assistantMsg := BuildAssistantMessage(msg)
 			history = append(history, types.HistoryItem{AssistantResponseMessage: &assistantMsg})
 		}
 	}
+
+	// 如果末尾还有未消费的 pendingToolResults（最后一条消息之前的 tool 消息），
+	// 传递给 CurrentMessageBuilder 阶段处理
+	if len(pendingToolResults) > 0 {
+		ctx.PendingToolResults = pendingToolResults
+	}
+
+	// 截断超长历史消息
+	history = truncateHistoryIfNeeded(history)
+	// 过滤截断后的孤儿 ToolResult
+	history = filterOrphanedToolResults(history)
 
 	ctx.History = history
 	return nil
@@ -133,9 +184,19 @@ func BuildHistoryUserMessage(msg providers.Message, modelId string, shouldKeepIm
 		userInputMsg.UserInputMessageContext = &types.UserInputMessageContext{
 			ToolResults: DeduplicateToolResults(toolResults),
 		}
-		userInputMsg.Content = ""
+		// Kiro API 要求 content 非空
+		if strings.TrimSpace(textContent) == "" {
+			userInputMsg.Content = "Tool results provided."
+		} else {
+			userInputMsg.Content = textContent
+		}
 	} else {
-		userInputMsg.Content = textContent
+		// Kiro API 要求 content 非空
+		if strings.TrimSpace(textContent) == "" {
+			userInputMsg.Content = "Continue"
+		} else {
+			userInputMsg.Content = textContent
+		}
 	}
 
 	if len(images) > 0 {
@@ -190,6 +251,10 @@ func BuildAssistantMessage(msg providers.Message) types.AssistantResponseMessage
 		content = sb.String()
 	}
 
+	// Kiro API 要求 assistant 消息内容非空
+	if strings.TrimSpace(content) == "" {
+		content = defaultAssistantContent
+	}
 	assistantMsg.Content = content
 
 	// 处理工具调用
@@ -216,4 +281,52 @@ func BuildAssistantMessage(msg providers.Message) types.AssistantResponseMessage
 	}
 
 	return assistantMsg
+}
+
+// truncateHistoryIfNeeded 截断超长历史消息列表，保留最近的 kiroMaxHistoryMessages 条
+func truncateHistoryIfNeeded(history []types.HistoryItem) []types.HistoryItem {
+	if len(history) <= kiroMaxHistoryMessages {
+		return history
+	}
+	return history[len(history)-kiroMaxHistoryMessages:]
+}
+
+// filterOrphanedToolResults 清理截断后的孤儿 ToolResult。
+// 当历史截断导致产生 tool_use 的 assistant 消息被移除，
+// 但后续的 user/tool_result 仍然存在时，需要移除这些无匹配的 tool_result。
+func filterOrphanedToolResults(history []types.HistoryItem) []types.HistoryItem {
+	// 收集所有有效的 toolUseId
+	validToolUseIDs := make(map[string]bool)
+	for _, h := range history {
+		if h.AssistantResponseMessage == nil {
+			continue
+		}
+		for _, tu := range h.AssistantResponseMessage.ToolUses {
+			validToolUseIDs[tu.ToolUseId] = true
+		}
+	}
+
+	// 过滤 history 中的 user 消息里的孤儿 tool_result
+	for _, h := range history {
+		if h.UserInputMessage == nil || h.UserInputMessage.UserInputMessageContext == nil {
+			continue
+		}
+		ctx := h.UserInputMessage.UserInputMessageContext
+		if len(ctx.ToolResults) == 0 {
+			continue
+		}
+
+		filtered := make([]types.ToolResult, 0, len(ctx.ToolResults))
+		for _, tr := range ctx.ToolResults {
+			if validToolUseIDs[tr.ToolUseId] {
+				filtered = append(filtered, tr)
+			}
+		}
+		ctx.ToolResults = filtered
+		if len(ctx.ToolResults) == 0 && len(ctx.Tools) == 0 {
+			h.UserInputMessage.UserInputMessageContext = nil
+		}
+	}
+
+	return history
 }

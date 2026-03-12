@@ -20,3 +20,4 @@ type ToolSpecification = types.ToolSpecification
 type InputSchema = types.InputSchema
 type Image = types.Image
 type ImageSource = types.ImageSource
+type InferenceConfig = types.InferenceConfig
