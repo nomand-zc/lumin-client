@@ -68,9 +68,9 @@ func makeToolMsg(toolID, content string) providers.Message {
 	return providers.Message{Role: providers.RoleTool, ToolID: toolID, Content: content}
 }
 
-// newReq 快速构造 providers.Request
-func newReq(model string, messages ...providers.Message) providers.Request {
-	return providers.Request{
+// newReq 快速构造 providers.Request 指针
+func newReq(model string, messages ...providers.Message) *providers.Request {
+	return &providers.Request{
 		Model:    model,
 		Messages: messages,
 	}
@@ -82,7 +82,7 @@ func newReq(model string, messages ...providers.Message) providers.Request {
 
 // TestConvertRequest_EmptyMessages 传入空消息列表，应返回 error
 func TestConvertRequest_EmptyMessages(t *testing.T) {
-	req := providers.Request{Model: "claude-sonnet-4.5", Messages: []providers.Message{}}
+	req := &providers.Request{Model: "claude-sonnet-4.5", Messages: []providers.Message{}}
 	result, err := ConvertRequest(context.Background(), req)
 	if err == nil {
 		t.Error("期望返回 error，实际 error 为 nil")
@@ -570,7 +570,7 @@ func TestConvertImage_Nil(t *testing.T) {
 // TestConvertRequest_ImageInCurrentMessage 最后一条 user 消息含图片 ContentPart，图片应放入 UserInputMessage.Images
 func TestConvertRequest_ImageInCurrentMessage(t *testing.T) {
 	imgData := []byte("image bytes")
-	req := providers.Request{
+	req := &providers.Request{
 		Model: "claude-sonnet-4.5",
 		Messages: []providers.Message{
 			{
@@ -612,7 +612,7 @@ func TestConvertRequest_ImageThreshold_TooFar(t *testing.T) {
 		makeAssistantMsg("回复3"),
 		makeUserMsg("最后消息"),
 	}
-	req := providers.Request{Model: "claude-sonnet-4.5", Messages: messages}
+	req := &providers.Request{Model: "claude-sonnet-4.5", Messages: messages}
 	result, err := ConvertRequest(context.Background(), req)
 	if err != nil {
 		t.Fatalf("期望 error 为 nil，实际 %v", err)
@@ -658,7 +658,7 @@ func TestConvertRequest_ImageThreshold_Close(t *testing.T) {
 		makeAssistantMsg("回复2"),
 		makeUserMsg("最后消息"),
 	}
-	req := providers.Request{Model: "claude-sonnet-4.5", Messages: messages}
+	req := &providers.Request{Model: "claude-sonnet-4.5", Messages: messages}
 	result, err := ConvertRequest(context.Background(), req)
 	if err != nil {
 		t.Fatalf("期望 error 为 nil，实际 %v", err)
@@ -973,7 +973,7 @@ func TestDeduplicateToolResults(t *testing.T) {
 
 // TestConvertRequest_FullConversation system + user + assistant(含 ToolCalls) + tool + user 完整对话
 func TestConvertRequest_FullConversation(t *testing.T) {
-	req := providers.Request{
+	req := &providers.Request{
 		Model: "claude-sonnet-4.5",
 		Messages: []providers.Message{
 			makeSystemMsg("你是一个助手"),
@@ -1036,7 +1036,7 @@ func TestConvertRequest_FullConversation(t *testing.T) {
 
 // TestConvertRequest_AssistantWithToolCall_ThenToolResult assistant 带工具调用 + tool 结果作为最后消息
 func TestConvertRequest_AssistantWithToolCall_ThenToolResult(t *testing.T) {
-	req := providers.Request{
+	req := &providers.Request{
 		Model: "claude-sonnet-4.5",
 		Messages: []providers.Message{
 			makeUserMsg("请执行工具"),

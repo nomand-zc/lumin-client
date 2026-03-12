@@ -8,12 +8,12 @@ import (
 	"github.com/nomand-zc/lumin-client/usagerule"
 )
 
-// Provider is an interface for a provider. It includes methods for generating content and generating content in a stream. The GenerateContent method takes a context, credentials, and a request, and returns a response or an error. The GenerateContentStream method takes the same parameters but returns a ResponseChain for streaming responses.
+// Provider is an interface for a provider. It includes methods for generating content and generating content in a stream. The GenerateContent method takes a context and a request (which contains credentials), and returns a response or an error. The GenerateContentStream method takes the same parameters but returns a ResponseChain for streaming responses.
 type Model interface {
 	// GenerateContent generates content.
-	GenerateContent(ctx context.Context, creds credentials.Credential, req Request) (*Response, error)
+	GenerateContent(ctx context.Context, req *Request) (*Response, error)
 	// GenerateContentStream generates content in a stream.
-	GenerateContentStream(ctx context.Context, creds credentials.Credential, req Request) (queue.Consumer[*Response], error)
+	GenerateContentStream(ctx context.Context, req *Request) (queue.Consumer[*Response], error)
 }
 
 // CredentialManager 凭证管理器接口，负责凭证的刷新。

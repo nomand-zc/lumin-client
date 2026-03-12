@@ -16,7 +16,7 @@ const (
 // preprocessMessages 包装 builder.PreprocessBuilder 的内部逻辑，供测试使用
 func preprocessMessages(messages []providers.Message) []providers.Message {
 	bCtx := &builder.BuildContext{
-		Req: providers.Request{Messages: messages},
+		Req: &providers.Request{Messages: messages},
 	}
 	b := &builder.PreprocessBuilder{}
 	_ = b.Build(bCtx)
@@ -31,7 +31,7 @@ func convertImage(img *providers.Image) *Image {
 // buildKiroTools 包装 builder.ToolsBuilder 的内部逻辑，供测试使用
 func buildKiroTools(tools []providers.Tool) []Tool {
 	bCtx := &builder.BuildContext{
-		Req: providers.Request{Tools: tools},
+		Req: &providers.Request{Tools: tools},
 	}
 	b := &builder.ToolsBuilder{}
 	_ = b.Build(bCtx)

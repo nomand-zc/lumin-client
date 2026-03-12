@@ -1,5 +1,9 @@
 package providers
 
+import (
+	"github.com/nomand-zc/lumin-client/credentials"
+)
+
 // GenerationConfig contains configuration for text generation.
 type GenerationConfig struct {
 	// MaxTokens is the maximum number of tokens to generate.
@@ -37,6 +41,12 @@ type GenerationConfig struct {
 
 // Request is the request to the model.
 type Request struct {
+	// Credential 是本次请求使用的凭证信息。
+	Credential credentials.Credential `json:"-"`
+
+	// Header 允许调用者设置自定义的动态 Headers 信息，会在请求上游时附加到 HTTP 请求头中。
+	Header map[string]string `json:"-"`
+
 	// Model is the model name to use for this request.
 	// If empty, the provider's default model will be used.
 	Model string `json:"model,omitempty"`

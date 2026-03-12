@@ -10,7 +10,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream"
 	"github.com/google/uuid"
-	"github.com/nomand-zc/lumin-client/credentials"
 	kirocreds "github.com/nomand-zc/lumin-client/credentials/kiro"
 	"github.com/nomand-zc/lumin-client/httpclient"
 	"github.com/nomand-zc/lumin-client/log"
@@ -63,9 +62,9 @@ func (p *kiroProvider) Type() string {
 }
 
 // GenerateContent generates content.
-func (p *kiroProvider) GenerateContent(ctx context.Context, creds credentials.Credential, 
-	req providers.Request) (*providers.Response, error) {
-	reader, err := p.GenerateContentStream(ctx, creds, req)
+func (p *kiroProvider) GenerateContent(ctx context.Context, 
+	req *providers.Request) (*providers.Response, error) {
+	reader, err := p.GenerateContentStream(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -93,8 +92,8 @@ func (p *kiroProvider) GenerateContent(ctx context.Context, creds credentials.Cr
 }
 
 // GenerateContentStream generates content in a stream.
-func (p *kiroProvider) GenerateContentStream(ctx context.Context, creds credentials.Credential, 
-	req providers.Request) (queue.Consumer[*providers.Response], error){
+func (p *kiroProvider) GenerateContentStream(ctx context.Context, 
+	req *providers.Request) (queue.Consumer[*providers.Response], error){
 	// 1. 初始化调用上下文
 	ctx, inv := providers.EnsureInvocationContext(ctx)
 	inputTokens, err := p.options.tokenConter.CountTokensRange(ctx, req.Messages, 0, len(req.Messages))
@@ -106,7 +105,7 @@ func (p *kiroProvider) GenerateContentStream(ctx context.Context, creds credenti
 	inv.ID = uuid.NewString()
 
 	// 2. 构建请求信息
-	kiroCreds := creds.(*kirocreds.Credential)
+	kiroCreds := req.Credential.(*kirocreds.Credential)
 	url := fmt.Sprintf(p.options.url, kiroCreds.Region)
 	cwReq, err := converter.ConvertRequest(ctx, req)
 	if err != nil {
@@ -126,7 +125,11 @@ func (p *kiroProvider) GenerateContentStream(ctx context.Context, creds credenti
 	if err != nil {
 		return nil, err
 	}
-	for key, value := range p.options.headerBuilder() {
+	for key, value := range p.options.headers {
+		request.Header.Set(key, value)
+	}
+	// 设置 Request 中调用者传递的动态 Header
+	for key, value := range req.Header {
 		request.Header.Set(key, value)
 	}
 	request.Header.Set("Accept", "text/event-stream")

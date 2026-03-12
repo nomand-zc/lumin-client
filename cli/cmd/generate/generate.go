@@ -10,7 +10,6 @@ import (
 
 	"github.com/nomand-zc/lumin-client/cli/internal/auth"
 	"github.com/nomand-zc/lumin-client/cli/internal/factory"
-	"github.com/nomand-zc/lumin-client/credentials"
 	"github.com/nomand-zc/lumin-client/log"
 	"github.com/nomand-zc/lumin-client/providers"
 	"github.com/nomand-zc/lumin-client/utils"
@@ -86,19 +85,22 @@ func (g *generator) run() error {
 		return fmt.Errorf("解析请求 JSON 失败: %w", err)
 	}
 
+	// 将凭证设置到请求中
+	req.Credential = creds
+
 	log.Infof("\n ===== 开始生成 ===== \n原始请求: %s\n", utils.Bytes2Str(reqData))
 	if g.stream {
-		return g.runStream(creds, req)
+		return g.runStream(&req)
 	}
-	return g.runNonStream(creds, req)
+	return g.runNonStream(&req)
 }
 
 // runStream 执行流式生成逻辑
-func (g *generator) runStream(creds credentials.Credential, req providers.Request) error {
+func (g *generator) runStream(req *providers.Request) error {
 	// 确保启用流式模式
 	req.GenerationConfig.Stream = true
 
-	reader, err := g.provider.GenerateContentStream(context.Background(), creds, req)
+	reader, err := g.provider.GenerateContentStream(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("流式生成失败: %w", err)
 	}
@@ -121,10 +123,10 @@ func (g *generator) runStream(creds credentials.Credential, req providers.Reques
 }
 
 // runNonStream 执行非流式生成逻辑
-func (g *generator) runNonStream(creds credentials.Credential, req providers.Request) error {
+func (g *generator) runNonStream(req *providers.Request) error {
 	req.GenerationConfig.Stream = false
 
-	resp, err := g.provider.GenerateContent(context.Background(), creds, req)
+	resp, err := g.provider.GenerateContent(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("生成失败: %w", err)
 	}

@@ -12,7 +12,7 @@ import (
 type BuildContext struct {
 	// 输入
 	Ctx     context.Context
-	Req     providers.Request
+	Req     *providers.Request
 	ModelId string
 
 	// 阶段 1：预处理后的消息列表
