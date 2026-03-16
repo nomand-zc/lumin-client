@@ -9,8 +9,8 @@ import (
 
 // Google OAuth2 固定常量
 const (
-	DefaultClientID     = ""
-	DefaultClientSecret = ""
+	DefaultClientID     = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
+	DefaultClientSecret = "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"
 	DefaultTokenURI     = "https://oauth2.googleapis.com/token"
 )
 
