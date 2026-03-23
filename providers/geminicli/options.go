@@ -12,10 +12,10 @@ const (
 	// API 版本
 	DefaultAPIVersion = "v1internal"
 
-	// GeminiCLI 版本号，对齐 CLIProxyAPIPlus 中的 GeminiCLIVersion
-	GeminiCLIVersion = "0.31.0"
-	// X-Goog-Api-Client header 值，对齐 CLIProxyAPIPlus 中的 GeminiCLIApiClientHeader
-	GeminiCLIApiClientHeader = "google-genai-sdk/1.41.0 gl-node/v22.19.0"
+	// GeminiCLI 版本号，对齐 gemini-cli package.json 中的 version
+	GeminiCLIVersion = "0.36.0"
+	// X-Goog-Api-Client header 值，对齐 @google/genai SDK 版本
+	GeminiCLIApiClientHeader = "google-genai-sdk/1.30.0 gl-node/v22.19.0"
 )
 
 var defaultOptions = Options{
@@ -82,13 +82,13 @@ func (o *Options) GenerateURL() string {
 }
 
 // GeminiCLIUserAgent 生成符合 Gemini CLI 格式的 User-Agent 字符串
-// 对齐 CLIProxyAPIPlus 中 misc.GeminiCLIUserAgent 的实现
-// 格式: "GeminiCLI/<version>/<model> (<os>; <arch>)"
+// 对齐 gemini-cli contentGenerator.ts 中的 User-Agent 生成逻辑
+// 格式: "GeminiCLI/<version>/<model> (<os>; <arch>; <surface>)"
 func GeminiCLIUserAgent(model string) string {
 	if model == "" {
 		model = "unknown"
 	}
-	return fmt.Sprintf("GeminiCLI/%s/%s (%s; %s)", GeminiCLIVersion, model, geminiCLIOS(), geminiCLIArch())
+	return fmt.Sprintf("GeminiCLI/%s/%s (%s; %s; cli)", GeminiCLIVersion, model, geminiCLIOS(), geminiCLIArch())
 }
 
 // geminiCLIOS 将 Go runtime OS 名映射为 Node.js 风格的平台字符串

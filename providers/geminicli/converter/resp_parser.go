@@ -84,7 +84,7 @@ type GeminiCLIError struct {
 var dataPrefix = []byte("data: ")
 
 // ParseSSEStream 解析 Gemini CLI SSE 流并将结果推送到队列
-// 对齐 CLIProxyAPIPlus 中 ExecuteStream 的 SSE 解析逻辑
+// 对齐 gemini-cli server.ts 中 requestStreamingPost 的 SSE 解析逻辑——支持多行 data: 拼接
 func ParseSSEStream(ctx context.Context, body io.ReadCloser, model string,
 	chainQueue queue.Queue[*providers.Response]) {
 	defer func() {
@@ -104,84 +104,97 @@ func ParseSSEStream(ctx context.Context, body io.ReadCloser, model string,
 	var responseID string
 	toolCallIndex := 0
 
+	// 对齐 gemini-cli server.ts: 多行 data: 拼接缓冲区
+	var bufferedLines []string
+
 	for scanner.Scan() {
-		line := scanner.Bytes()
+		line := scanner.Text()
 
-		// 跳过空行
-		if len(bytes.TrimSpace(line)) == 0 {
+		// 处理 data: 开头的行，累加到缓冲区
+		if strings.HasPrefix(line, "data: ") {
+			bufferedLines = append(bufferedLines, strings.TrimSpace(line[6:]))
 			continue
 		}
 
-		// 只处理 data: 开头的行，对齐 CLIProxyAPIPlus executor
-		if !bytes.HasPrefix(line, dataPrefix) {
-			continue
-		}
-
-		// 提取 data: 后面的 JSON 内容
-		jsonData := bytes.TrimSpace(line[len(dataPrefix):])
-		if len(jsonData) == 0 {
-			continue
-		}
-
-		// 解析 SSE 事件
-		var sseResp GeminiCLIStreamResponse
-		if err := json.Unmarshal(jsonData, &sseResp); err != nil {
-			// 尝试解析为错误响应
-			var errResp GeminiCLIErrorResponse
-			if errErr := json.Unmarshal(jsonData, &errResp); errErr == nil && errResp.Error != nil {
-				firstErr = fmt.Errorf("gemini API error [%d]: %s", errResp.Error.Code, errResp.Error.Message)
-				break
-			}
-			continue
-		}
-
-		if sseResp.Response == nil {
-			continue
-		}
-
-		resp := sseResp.Response
-
-		// 收集模型版本和响应 ID
-		if resp.ModelVersion != "" {
-			modelVersion = resp.ModelVersion
-		}
-		if resp.ResponseID != "" {
-			responseID = resp.ResponseID
-		}
-
-		// 处理 candidates
-		if len(resp.Candidates) > 0 {
-			candidate := resp.Candidates[0]
-
-			// 收集 finishReason
-			if candidate.FinishReason != "" {
-				upstreamFinishReason = candidate.FinishReason
+		// 空行表示一个 SSE 事件结束，对齐 gemini-cli server.ts 的 readline 逻辑
+		if line == "" {
+			if len(bufferedLines) == 0 {
+				continue // 没有缓冲的数据要处理
 			}
 
-			if candidate.Content != nil && len(candidate.Content.Parts) > 0 {
-				for _, part := range candidate.Content.Parts {
-					chunk := convertPartToResponse(ctx, &part, model, responseID,
-						&toolCallIndex, &hasToolCalls)
-					if chunk != nil {
-						chainQueue.Push(ctx, chunk)
+			// 拼接多行 data 并解析 JSON
+			chunk := strings.Join(bufferedLines, "\n")
+			bufferedLines = nil // 重置缓冲区
+
+			jsonData := []byte(chunk)
+			if len(bytes.TrimSpace(jsonData)) == 0 {
+				continue
+			}
+
+			// 解析 SSE 事件
+			var sseResp GeminiCLIStreamResponse
+			if err := json.Unmarshal(jsonData, &sseResp); err != nil {
+				// 尝试解析为错误响应
+				var errResp GeminiCLIErrorResponse
+				if errErr := json.Unmarshal(jsonData, &errResp); errErr == nil && errResp.Error != nil {
+					firstErr = fmt.Errorf("gemini API error [%d]: %s", errResp.Error.Code, errResp.Error.Message)
+					break
+				}
+			continue
+			}
+
+			if sseResp.Response == nil {
+				continue
+			}
+
+			resp := sseResp.Response
+
+			// 收集模型版本和响应 ID
+			if resp.ModelVersion != "" {
+				modelVersion = resp.ModelVersion
+			}
+			if resp.ResponseID != "" {
+				responseID = resp.ResponseID
+			}
+
+			// 处理 candidates
+			if len(resp.Candidates) > 0 {
+				candidate := resp.Candidates[0]
+
+				// 收集 finishReason
+				if candidate.FinishReason != "" {
+					upstreamFinishReason = candidate.FinishReason
+				}
+
+				if candidate.Content != nil && len(candidate.Content.Parts) > 0 {
+					for _, part := range candidate.Content.Parts {
+						chunk := convertPartToResponse(ctx, &part, model, responseID,
+							&toolCallIndex, &hasToolCalls)
+						if chunk != nil {
+							chainQueue.Push(ctx, chunk)
+						}
 					}
 				}
 			}
-		}
 
-		// 收集用量统计
-		if resp.UsageMetadata != nil {
-			usage := resp.UsageMetadata
-			if usage.PromptTokenCount > 0 {
-				collectedUsage.PromptTokens = usage.PromptTokenCount
+			// 收集用量统计
+			if resp.UsageMetadata != nil {
+				usage := resp.UsageMetadata
+				if usage.PromptTokenCount > 0 {
+					collectedUsage.PromptTokens = usage.PromptTokenCount
+				}
+				// 对齐 gemini-cli: candidatesTokenCount 是生成的内容 token，
+				// thoughtsTokenCount 是独立的思考 token 统计，不应简单相加
+				if usage.CandidatesTokenCount > 0 {
+					collectedUsage.CompletionTokens = usage.CandidatesTokenCount
+				}
+				if usage.TotalTokenCount > 0 {
+					collectedUsage.TotalTokens = usage.TotalTokenCount
+				}
 			}
-			if usage.CandidatesTokenCount > 0 {
-				collectedUsage.CompletionTokens = usage.CandidatesTokenCount + usage.ThoughtsTokenCount
-			}
-			if usage.TotalTokenCount > 0 {
-				collectedUsage.TotalTokens = usage.TotalTokenCount
-			}
+			continue
 		}
+		// 忽略其他行（如 event:、id:、注释等）
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -299,13 +312,16 @@ func mapFinishReason(geminiReason string, hasToolCalls bool) string {
 		return "tool_calls"
 	}
 
+	// 对齐 gemini-cli semantic.ts 中 toOTelFinishReason 的完整映射
 	switch strings.ToUpper(geminiReason) {
-	case "STOP", "FINISH_REASON_UNSPECIFIED", "UNKNOWN", "":
+	case "STOP", "FINISH_REASON_UNSPECIFIED", "UNKNOWN", "", "OTHER":
 		return "stop"
 	case "MAX_TOKENS":
 		return "length"
-	case "SAFETY":
+	case "SAFETY", "RECITATION", "LANGUAGE", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "IMAGE_SAFETY":
 		return "content_filter"
+	case "MALFORMED_FUNCTION_CALL", "UNEXPECTED_TOOL_CALL":
+		return "error"
 	default:
 		return "stop"
 	}

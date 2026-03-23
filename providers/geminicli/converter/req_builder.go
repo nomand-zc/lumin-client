@@ -24,20 +24,27 @@ const thoughtSignatureSkip = "skip_thought_signature_validator"
 // ========== Gemini CLI API 请求结构体 ==========
 
 // GeminiCLIRequest 是发送到 Gemini CLI API 的顶层请求结构
+// 对齐 gemini-cli converter.ts 中 CAGenerateContentRequest 定义
 type GeminiCLIRequest struct {
-	Model   string          `json:"model"`
-	Project string          `json:"project"`
-	Request *GeminiCLIInner `json:"request"`
+	Model              string          `json:"model"`
+	Project            string          `json:"project,omitempty"`
+	UserPromptID       string          `json:"user_prompt_id,omitempty"`
+	Request            *GeminiCLIInner `json:"request"`
+	EnabledCreditTypes []string        `json:"enabled_credit_types,omitempty"`
 }
 
 // GeminiCLIInner 是嵌套的 request 部分
+// 对齐 gemini-cli converter.ts 中 VertexGenerateContentRequest 定义
 type GeminiCLIInner struct {
 	Contents          []GeminiContent         `json:"contents"`
 	SystemInstruction *GeminiContent          `json:"systemInstruction,omitempty"`
+	CachedContent     string                  `json:"cachedContent,omitempty"`
 	Tools             []GeminiTool            `json:"tools,omitempty"`
 	ToolConfig        *GeminiToolConfig       `json:"toolConfig,omitempty"`
+	Labels            map[string]string       `json:"labels,omitempty"`
 	GenerationConfig  *GeminiGenerationConfig `json:"generationConfig,omitempty"`
 	SafetySettings    []map[string]string     `json:"safetySettings"`
+	SessionID         string                  `json:"session_id,omitempty"`
 }
 
 // GeminiContent 代表一条消息
@@ -103,20 +110,23 @@ type GeminiFunctionCallingConfig struct {
 }
 
 // GeminiGenerationConfig 生成配置
+// 对齐 gemini-cli converter.ts 中 VertexGenerationConfig 定义
 type GeminiGenerationConfig struct {
-	Temperature    *float64              `json:"temperature,omitempty"`
-	TopP           *float64              `json:"topP,omitempty"`
-	TopK           *float64              `json:"topK,omitempty"`
-	MaxOutputTokens *int                 `json:"maxOutputTokens,omitempty"`
-	StopSequences  []string              `json:"stopSequences,omitempty"`
-	ThinkingConfig *GeminiThinkingConfig `json:"thinkingConfig,omitempty"`
+	Temperature      *float64              `json:"temperature,omitempty"`
+	TopP             *float64              `json:"topP,omitempty"`
+	TopK             *float64              `json:"topK,omitempty"`
+	MaxOutputTokens  *int                  `json:"maxOutputTokens,omitempty"`
+	StopSequences    []string              `json:"stopSequences,omitempty"`
+	PresencePenalty  *float64              `json:"presencePenalty,omitempty"`
+	FrequencyPenalty *float64              `json:"frequencyPenalty,omitempty"`
+	ThinkingConfig   *GeminiThinkingConfig `json:"thinkingConfig,omitempty"`
 }
 
 // GeminiThinkingConfig thinking 配置
 type GeminiThinkingConfig struct {
-	ThinkingBudget  *int    `json:"thinkingBudget,omitempty"`
-	ThinkingLevel   string  `json:"thinkingLevel,omitempty"`
-	IncludeThoughts bool    `json:"includeThoughts,omitempty"`
+	ThinkingBudget  *int  `json:"thinkingBudget,omitempty"`
+	ThinkingLevel   string `json:"thinkingLevel,omitempty"`
+	IncludeThoughts *bool  `json:"includeThoughts,omitempty"`
 }
 
 // ========== 转换逻辑 ==========
@@ -206,10 +216,35 @@ func BuildRequest(req *providers.Request, projectID string) (*GeminiCLIRequest, 
 		inner.GenerationConfig = genConfig
 	}
 
+	// 6. 从 Metadata 中提取可选的 user_prompt_id、session_id、enabled_credit_types、labels
+	var userPromptID string
+	var sessionID string
+	var enabledCreditTypes []string
+	if req.Metadata != nil {
+		if v, ok := req.Metadata["user_prompt_id"].(string); ok {
+			userPromptID = v
+		}
+		if v, ok := req.Metadata["session_id"].(string); ok {
+			sessionID = v
+		}
+		if v, ok := req.Metadata["enabled_credit_types"].([]string); ok {
+			enabledCreditTypes = v
+		}
+		if v, ok := req.Metadata["labels"].(map[string]string); ok {
+			inner.Labels = v
+		}
+		if v, ok := req.Metadata["cached_content"].(string); ok {
+			inner.CachedContent = v
+		}
+	}
+	inner.SessionID = sessionID
+
 	return &GeminiCLIRequest{
-		Model:   req.Model,
-		Project: projectID,
-		Request: inner,
+		Model:              req.Model,
+		Project:            projectID,
+		UserPromptID:       userPromptID,
+		Request:            inner,
+		EnabledCreditTypes: enabledCreditTypes,
 	}, nil
 }
 
@@ -413,6 +448,14 @@ func convertGenerationConfig(cfg *providers.GenerationConfig) *GeminiGenerationC
 		genCfg.TopP = cfg.TopP
 		hasConfig = true
 	}
+	if cfg.PresencePenalty != nil {
+		genCfg.PresencePenalty = cfg.PresencePenalty
+		hasConfig = true
+	}
+	if cfg.FrequencyPenalty != nil {
+		genCfg.FrequencyPenalty = cfg.FrequencyPenalty
+		hasConfig = true
+	}
 	if cfg.MaxTokens != nil {
 		genCfg.MaxOutputTokens = cfg.MaxTokens
 		hasConfig = true
@@ -423,9 +466,10 @@ func convertGenerationConfig(cfg *providers.GenerationConfig) *GeminiGenerationC
 	}
 
 	// thinking 配置
-	if cfg.ThinkingEnabled != nil && *cfg.ThinkingEnabled {
+	if cfg.ThinkingEnabled != nil {
+		include := *cfg.ThinkingEnabled
 		thinkingCfg := &GeminiThinkingConfig{
-			IncludeThoughts: true,
+			IncludeThoughts: &include,
 		}
 		if cfg.ThinkingTokens != nil {
 			budget := *cfg.ThinkingTokens
@@ -442,7 +486,8 @@ func convertGenerationConfig(cfg *providers.GenerationConfig) *GeminiGenerationC
 			genCfg.ThinkingConfig = &GeminiThinkingConfig{}
 		}
 		genCfg.ThinkingConfig.ThinkingLevel = effort
-		genCfg.ThinkingConfig.IncludeThoughts = effort != "none"
+		include := effort != "none"
+		genCfg.ThinkingConfig.IncludeThoughts = &include
 		hasConfig = true
 	}
 
