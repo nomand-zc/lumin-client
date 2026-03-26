@@ -16,9 +16,9 @@ import (
 
 // StreamProcessor 将 Gemini SSE 事件流转换为 providers.Response 队列
 type StreamProcessor struct {
-	model         string
-	chainQueue    queue.Queue[*providers.Response]
-	toolCallSeq   uint64 // 实例级别的 tool call ID 计数器
+	model       string
+	chainQueue  queue.Queue[*providers.Response]
+	toolCallSeq uint64 // 实例级别的 tool call ID 计数器
 }
 
 // NewStreamProcessor 创建 SSE 流处理器

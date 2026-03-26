@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream"
@@ -38,13 +39,20 @@ type kiroProvider struct {
 
 // NewProvider creates a new kiro provider.
 func NewProvider(name string, opts ...Option) *kiroProvider {
-	options := &defaultOptions
+	// 深拷贝 defaultOptions，避免多实例共享全局状态
+	options := Options{
+		url:           defaultOptions.url,
+		defaultRegion: defaultOptions.defaultRegion,
+		tokenConter:   defaultOptions.tokenConter,
+		headers:       make(map[string]string, len(defaultOptions.headers)),
+	}
+	maps.Copy(options.headers, defaultOptions.headers)
 	for _, opt := range opts {
-		opt(options)
+		opt(&options)
 	}
 	return &kiroProvider{
 		name:    name,
-		options: options,
+		options: &options,
 		httpClient: httpclient.New(httpclient.WithMiddleware(
 			httpclient.LoggingMiddleware,
 		)),
@@ -151,12 +159,9 @@ func (p *kiroProvider) GenerateContentStream(ctx context.Context,
 	}
 	// 检查状态码
 	if resp.StatusCode != http.StatusOK {
-		return nil, &providers.HTTPError{
-			ErrorType:     providers.ErrorTypeForbidden,
-			ErrorCode:     resp.StatusCode,
-			Message:       fmt.Sprintf("HTTP status code: %d", resp.StatusCode),
-			RawStatusCode: resp.StatusCode,
-		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, newHTTPErrorf(resp.StatusCode, body, "HTTP status code: %d", resp.StatusCode)
 	}
 
 	// 4. 解码流式事件内容
@@ -219,7 +224,10 @@ func (p *kiroProvider) handleStreamEvent(ctx context.Context, inv *providers.Inv
 			}
 			// 检测到内联错误时，发送错误响应并终止流
 			if result.Error != nil && result.Error.Message != "" {
-				chainQueue.Push(ctx, result)
+				if err := chainQueue.Push(ctx, result); err != nil {
+					log.Warnf("kiro: push error response to queue failed: %v", err)
+					break
+				}
 				firstErr = fmt.Errorf("kiro API error: %s", result.Error.Message)
 				break
 			}
@@ -258,7 +266,10 @@ func (p *kiroProvider) handleStreamEvent(ctx context.Context, inv *providers.Inv
 			}
 
 			if msg.ShouldSendMessage() {
-				chainQueue.Push(ctx, result)
+				if err := chainQueue.Push(ctx, result); err != nil {
+					log.Warnf("kiro: push response to queue failed: %v", err)
+					break
+				}
 			}
 		}
 
@@ -286,7 +297,9 @@ func (p *kiroProvider) handleStreamEvent(ctx context.Context, inv *providers.Inv
 				FinishReason: &finishReason,
 			}),
 		)
-		chainQueue.Push(ctx, finalResp)
+		if err := chainQueue.Push(ctx, finalResp); err != nil {
+			log.Warnf("kiro: push final response to queue failed: %v", err)
+		}
 	}()
 
 	return chainQueue

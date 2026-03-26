@@ -47,8 +47,8 @@ func NewProvider(name string, opts ...Option) *geminicliProvider {
 		opt(&options)
 	}
 	return &geminicliProvider{
-		name:       name,
-		options:    &options,
+		name:    name,
+		options: &options,
 		httpClient: httpclient.New(httpclient.WithMiddleware(
 			httpclient.LoggingMiddleware,
 		)),

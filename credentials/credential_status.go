@@ -9,7 +9,7 @@ const (
 	// StatusExpired Token 已过期，可通过刷新（Refresh）恢复
 	StatusExpired CredentialStatus = 2
 	// StatusInvalidated 永久失效，无法恢复（如 refresh token 无效，对应 ErrInvalidGrant）
-	StatusInvalidated = 3
+	StatusInvalidated CredentialStatus = 3
 	// StatusBanned 被平台封禁（如 Kiro 账号被 AWS 临时封禁，body 含 TEMPORARILY_SUSPENDED）
 	StatusBanned CredentialStatus = 4
 	// StatusUsageLimited 触发了 usageRule 的用量限制

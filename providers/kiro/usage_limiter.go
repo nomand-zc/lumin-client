@@ -165,12 +165,13 @@ func (p *kiroProvider) GetUsageStats(ctx context.Context, creds credentials.Cred
 
 	// 更新凭证中的用户信息
 	if result != nil && result.UserInfo != nil {
-		kiroCreds := creds.(*kirocreds.Credential)
-		if kiroCreds.User.ID == "" {
-			kiroCreds.User.ID = result.UserInfo.UserID
-		}
-		if kiroCreds.User.Email == "" {
-			kiroCreds.User.Email = result.UserInfo.Email
+		if kiroCreds, ok := creds.(*kirocreds.Credential); ok {
+			if kiroCreds.User.ID == "" {
+				kiroCreds.User.ID = result.UserInfo.UserID
+			}
+			if kiroCreds.User.Email == "" {
+				kiroCreds.User.Email = result.UserInfo.Email
+			}
 		}
 	}
 	return result.convertToStats(), nil

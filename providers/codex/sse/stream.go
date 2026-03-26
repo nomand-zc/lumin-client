@@ -68,7 +68,9 @@ func (sp *StreamProcessor) Process(ctx context.Context, body io.ReadCloser) {
 			if sseEvent.Item != nil {
 				chunks := sp.processOutputItemDone(ctx, sseEvent.Item, &toolCallIndex, &hasToolCalls)
 				for _, chunk := range chunks {
-					sp.chainQueue.Push(ctx, chunk)
+					if err := sp.chainQueue.Push(ctx, chunk); err != nil {
+						return err
+					}
 				}
 			}
 
@@ -90,7 +92,9 @@ func (sp *StreamProcessor) Process(ctx context.Context, body io.ReadCloser) {
 						},
 					}),
 				)
-				sp.chainQueue.Push(ctx, chunk)
+				if err := sp.chainQueue.Push(ctx, chunk); err != nil {
+					return err
+				}
 			}
 
 		case "response.reasoning_summary_text.delta":
@@ -106,7 +110,9 @@ func (sp *StreamProcessor) Process(ctx context.Context, body io.ReadCloser) {
 						},
 					}),
 				)
-				sp.chainQueue.Push(ctx, chunk)
+				if err := sp.chainQueue.Push(ctx, chunk); err != nil {
+					return err
+				}
 			}
 
 		case "response.reasoning_text.delta":
@@ -122,7 +128,9 @@ func (sp *StreamProcessor) Process(ctx context.Context, body io.ReadCloser) {
 						},
 					}),
 				)
-				sp.chainQueue.Push(ctx, chunk)
+				if err := sp.chainQueue.Push(ctx, chunk); err != nil {
+					return err
+				}
 			}
 
 		case "response.reasoning_summary_part.added":
@@ -225,7 +233,10 @@ func (sp *StreamProcessor) Process(ctx context.Context, body io.ReadCloser) {
 		finalResp.ID = responseID
 	}
 
-	sp.chainQueue.Push(ctx, finalResp)
+	if err := sp.chainQueue.Push(ctx, finalResp); err != nil {
+		// 队列已关闭或 ctx 取消，finalResp 无法送达，与 kiro 侧保持一致
+		_ = err
+	}
 }
 
 // processOutputItemDone 处理 response.output_item.done 事件中的 item
@@ -389,8 +400,7 @@ func tryParseRetryAfter(message string) time.Duration {
 	if message == "" {
 		return 0
 	}
-	re := retryAfterRegex()
-	matches := re.FindStringSubmatch(message)
+	matches := _retryAfterRe.FindStringSubmatch(message)
 	if len(matches) < 3 {
 		return 0
 	}
@@ -408,12 +418,10 @@ func tryParseRetryAfter(message string) time.Duration {
 	return 0
 }
 
-var _retryAfterRe *regexp.Regexp
+var _retryAfterRe = regexp.MustCompile(`(?i)try again in\s*(\d+(?:\.\d+)?)\s*(s|ms|seconds?)`)
 
+// retryAfterRegex 返回用于解析 retry-after 的正则表达式（包级变量的 getter）
 func retryAfterRegex() *regexp.Regexp {
-	if _retryAfterRe == nil {
-		_retryAfterRe = regexp.MustCompile(`(?i)try again in\s*(\d+(?:\.\d+)?)\s*(s|ms|seconds?)`)
-	}
 	return _retryAfterRe
 }
 

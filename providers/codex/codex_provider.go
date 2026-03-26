@@ -46,8 +46,8 @@ func NewProvider(name string, opts ...Option) *codexProvider {
 		opt(&options)
 	}
 	return &codexProvider{
-		name:       name,
-		options:    &options,
+		name:    name,
+		options: &options,
 		httpClient: httpclient.New(httpclient.WithMiddleware(
 			httpclient.LoggingMiddleware,
 		)),
