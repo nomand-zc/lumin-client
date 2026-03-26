@@ -16,7 +16,7 @@ curl -X POST \
   -H "User-Agent: KiroIDE" \
   -d '{
     "refreshToken": "aorAAAAAGnAj5EeTK3L-eX3QAIXQlcewYVa5FyoXS93W_ArsnPqeRgNyzdxJ1XG3Ds-T85UOPDCeILYGgHyCS1HjEBkc0:MGUCMQDCV6tqGbsz1rmXzkoASn2tspeEkbA6a5PTvE9zMytRwgSyq12B88++LNZhIzCI89wCMFY6M/wNDBFvjBg+61hgiEyxd/swJW5zTXl/70/LFZ/28R8p1VGo2VGAtLmZTJaiPA"
-  }' 
+  }'
 
   -- response
   {
@@ -35,7 +35,7 @@ curl -X POST \
 {
   "error": "invalid_refresh_token",
   "error_description": "The refresh token is invalid or expired"
-} 
+}
 
 
 

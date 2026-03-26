@@ -13,20 +13,7 @@ repos:
       - id: pretty-format-golang
         args: [--autofix]
 
-  # goimports - 导入语句排序和格式化
-  - repo: https://github.com/tekwizely/pre-commit-golang
-    rev: v1.0.0-rc.1
-    hooks:
-      - id: go-imports
-        args: [-w]
-
-  # go vet - 静态分析
-  - repo: https://github.com/tekwizely/pre-commit-golang
-    rev: v1.0.0-rc.1
-    hooks:
-      - id: go-vet
-
-  # golangci-lint - 综合代码检查
+  # golangci-lint - 综合代码检查（包含 goimports, go vet 等）
   - repo: https://github.com/golangci/golangci-lint
     rev: v1.64.8
     hooks:

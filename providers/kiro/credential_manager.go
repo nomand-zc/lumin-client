@@ -90,7 +90,7 @@ func (r *kiroProvider) doRefreshRequest(ctx context.Context, refreshURL string, 
 	var result tokenRefreshResp
 	if err := json.Unmarshal(respBody, &result); err != nil {
 		return nil, jujuerrors.Annotatef(err, "parse refresh response failed, status=%d, body=%s",
-		resp.StatusCode, utils.Bytes2Str(respBody))
+			resp.StatusCode, utils.Bytes2Str(respBody))
 	}
 
 	return &result, nil
@@ -136,5 +136,3 @@ func (r *kiroProvider) refreshIDCToken(ctx context.Context, creds *kirocreds.Cre
 
 	return nil
 }
-
-

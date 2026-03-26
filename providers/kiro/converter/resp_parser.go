@@ -138,4 +138,3 @@ func containsErrorMarker(payload []byte) bool {
 		strings.Contains(s, `"type": "error"`) ||
 		strings.Contains(s, `"type": "exception"`))
 }
-

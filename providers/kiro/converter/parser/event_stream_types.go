@@ -49,8 +49,8 @@ const (
 	EventTypeSupplementaryWebLinks = "supplementaryWebLinksEvent"
 
 	// 错误事件类型（Kiro API 可能以 event 类型返回错误）
-	EventTypeError                  = "error"
-	EventTypeException              = "exception"
+	EventTypeError                   = "error"
+	EventTypeException               = "exception"
 	EventTypeInternalServerException = "internalServerException"
 
 	// 用量事件类型

@@ -31,7 +31,7 @@ type Credential struct {
 	ClientID     string `json:"clientId,omitempty"`
 	ClientSecret string `json:"clientSecret,omitempty"`
 	IDCRegion    string `json:"idcRegion,omitempty"` // IDC 模式使用的区域，对应 AIClient-2-API 的 idcRegion
-	
+
 	raw map[string]any `json:"-"` // 原始凭证数据，保留所有字段以便刷新时使用
 }
 
@@ -147,6 +147,6 @@ func (c *Credential) ToMap() map[string]any {
 			"idcRegion":    c.IDCRegion,
 		}
 	}
-	
+
 	return c.raw
 }

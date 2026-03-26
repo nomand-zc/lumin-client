@@ -73,9 +73,9 @@ curl -X GET "https://q.us-east-1.amazonaws.com/getUsageLimits?isEmailRequired=tr
 
 -- 403 Forbidden
 {
-  "error": "Forbidden", 
+  "error": "Forbidden",
   "message": "Account temporarily suspended"
-} 
+}
 
 -- 429 Too Many Requests
 {

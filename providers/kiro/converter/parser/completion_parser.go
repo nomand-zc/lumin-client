@@ -63,7 +63,7 @@ func (p *completionParser) Parse(ctx context.Context, msg *StreamMessage, opts .
 				Type: tc.Type,
 				Function: providers.FunctionDefinitionParam{
 					Name:      tc.Function.Name,
-				Arguments: utils.Str2Bytes(tc.Function.Arguments),
+					Arguments: utils.Str2Bytes(tc.Function.Arguments),
 				},
 			})
 		}

@@ -31,7 +31,7 @@ func (p *geminicliProvider) Refresh(ctx context.Context, creds credentials.Crede
 // tokenRefreshResp Google OAuth2 token 刷新响应
 type tokenRefreshResp struct {
 	AccessToken string `json:"access_token"`
-	ExpiresIn   int    `json:"expires_in"`  // Token 有效期（秒）
+	ExpiresIn   int    `json:"expires_in"` // Token 有效期（秒）
 	Scope       string `json:"scope"`
 	TokenType   string `json:"token_type"`
 	IDToken     string `json:"id_token,omitempty"`

@@ -2,10 +2,10 @@ package codex
 
 const (
 	// GPT-5 系列模型
-	GPT_5_1       = "gpt-5.1"
-	GPT_5_1_MINI  = "gpt-5.1-mini"
-	GPT_5_1_NANO  = "gpt-5.1-nano"
-	GPT_5_2       = "gpt-5.2"
+	GPT_5_1      = "gpt-5.1"
+	GPT_5_1_MINI = "gpt-5.1-mini"
+	GPT_5_1_NANO = "gpt-5.1-nano"
+	GPT_5_2      = "gpt-5.2"
 
 	// Codex 专用模型
 	GPT_5_1_CODEX     = "gpt-5.1-codex"

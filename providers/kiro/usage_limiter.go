@@ -231,7 +231,7 @@ func (p *kiroProvider) send(ctx context.Context, creds credentials.Credential) (
 	if err != nil {
 		return nil, errors.Annotate(err, "create get usage limits request failed")
 	}
-for k, v := range p.options.headers {
+	for k, v := range p.options.headers {
 		req.Header.Set(k, v)
 	}
 	req.Header.Set("Authorization", "Bearer "+kiroCreds.AccessToken)

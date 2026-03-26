@@ -24,17 +24,17 @@ type ResponsesStreamEvent struct {
 // ResponseCompleted 对应 response.completed 事件中的 response 字段
 // 对齐 codex-rs/codex-api/src/sse/responses.rs 中的 ResponseCompleted
 type ResponseCompleted struct {
-	ID    string                 `json:"id"`
+	ID    string                  `json:"id"`
 	Usage *ResponseCompletedUsage `json:"usage,omitempty"`
 }
 
 // ResponseCompletedUsage 完成事件的用量信息
 type ResponseCompletedUsage struct {
-	InputTokens         int64                                `json:"input_tokens"`
-	InputTokensDetails  *ResponseCompletedInputTokensDetails `json:"input_tokens_details,omitempty"`
-	OutputTokens        int64                                `json:"output_tokens"`
+	InputTokens         int64                                 `json:"input_tokens"`
+	InputTokensDetails  *ResponseCompletedInputTokensDetails  `json:"input_tokens_details,omitempty"`
+	OutputTokens        int64                                 `json:"output_tokens"`
 	OutputTokensDetails *ResponseCompletedOutputTokensDetails `json:"output_tokens_details,omitempty"`
-	TotalTokens         int64                                `json:"total_tokens"`
+	TotalTokens         int64                                 `json:"total_tokens"`
 }
 
 // ResponseCompletedInputTokensDetails 输入 token 详情

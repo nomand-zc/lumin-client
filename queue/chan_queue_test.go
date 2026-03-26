@@ -106,14 +106,14 @@ func TestChainQueue(t *testing.T) {
 func TestConcurrentAccess(t *testing.T) {
 	q := New[int](100)
 	var wg sync.WaitGroup
-	
+
 	// 启动10个写入goroutine
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
 			for j := 0; j < 100; j++ {
-			err := q.Push(context.Background(), id*100 + j)
+				err := q.Push(context.Background(), id*100+j)
 				if err != nil && !IsClosedError(err) && !IsFullError(err) {
 					t.Errorf("Unexpected error from goroutine %d: %v", id, err)
 				}
@@ -124,29 +124,29 @@ func TestConcurrentAccess(t *testing.T) {
 			}
 		}(i)
 	}
-	
+
 	// 启动10个读取goroutine
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
 			for j := 0; j < 100; j++ {
-			_, err := q.Pop(context.Background())
+				_, err := q.Pop(context.Background())
 				if err != nil && !IsClosedError(err) {
 					t.Errorf("Pop error from goroutine %d: %v", id, err)
 				}
 			}
 		}(i)
 	}
-	
+
 	// 等待所有goroutine完成
 	wg.Wait()
-	
+
 	// 验证队列状态
 	if q.Len() != 0 {
 		t.Errorf("Queue should be empty after concurrent access, got length %d", q.Len())
 	}
-	
+
 	fmt.Println("Concurrent access test passed!")
 }
 
@@ -154,7 +154,7 @@ func TestConcurrentAccess(t *testing.T) {
 func TestConcurrentClose(t *testing.T) {
 	q := New[int](10)
 	var wg sync.WaitGroup
-	
+
 	// 启动多个goroutine同时尝试关闭
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
@@ -166,18 +166,18 @@ func TestConcurrentClose(t *testing.T) {
 			}
 		}(i)
 	}
-	
+
 	// 同时启动读写goroutine
 	for i := 0; i < 3; i++ {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
 			for j := 0; j < 10; j++ {
-			err := q.Push(context.Background(), id*10 + j)
+				err := q.Push(context.Background(), id*10+j)
 				if err != nil && !IsClosedError(err) && !IsFullError(err) {
 					t.Errorf("Push error: %v", err)
 				}
-				
+
 				_, err = q.Pop(context.Background())
 				if err != nil && !IsClosedError(err) {
 					t.Errorf("Pop error: %v", err)
@@ -185,21 +185,21 @@ func TestConcurrentClose(t *testing.T) {
 			}
 		}(i)
 	}
-	
+
 	wg.Wait()
-	
+
 	// 验证队列已关闭
 	if !q.Closed() {
 		t.Error("Queue should be closed after concurrent close attempts")
 	}
-	
+
 	fmt.Println("Concurrent close test passed!")
 }
 
 // TestQueueFull 测试队列满的情况
 func TestQueueFull(t *testing.T) {
 	q := New[int](5) // 小缓冲区
-	
+
 	// 填满队列
 	for i := 0; i < 5; i++ {
 		err := q.Push(context.Background(), i)
@@ -207,7 +207,7 @@ func TestQueueFull(t *testing.T) {
 			t.Errorf("Push failed: %v", err)
 		}
 	}
-	
+
 	// 尝试推入第6个元素，使用短超时的context，队列满时应因超时返回错误
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -215,6 +215,6 @@ func TestQueueFull(t *testing.T) {
 	if err == nil {
 		t.Error("Push should fail on full queue with timeout context")
 	}
-	
+
 	fmt.Println("Queue full test passed!")
 }

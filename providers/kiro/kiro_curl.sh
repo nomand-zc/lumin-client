@@ -18,7 +18,7 @@ curl -X POST "${BASE_URL}" \
   -H "Accept: application/json" \
   -i \
   -d '{"conversationState":{"chatTriggerType":"MANUAL","conversationId":"f8c372f1-55d9-4b10-a661-f250410a207a","currentMessage":{"userInputMessage":{"content":"请介绍一下人工智能的基本概念和发展历程。","modelId":"claude-haiku-4.5","origin":"AI_EDITOR","userInputMessageContext":{"tools":[{"toolSpecification":{"name":"no_tool_available","description":"This is a placeholder tool when no other tools are available. It does nothing.","inputSchema":{"json":{"properties":{},"type":"object"}}}}]}}},"history":[{"userInputMessage":{"content":"你是一个有用的AI助手，请用中文回答用户的问题。\n\n请介绍一下人工智能的基本概念和发展历程。","modelId":"claude-haiku-4.5","origin":"AI_EDITOR"}},{"assistantResponseMessage":{"content":"Continue"}}]},"profileArn":"arn:aws:codewhisperer:us-east-1:699475941385:profile/EHGA3GRVQMUK"}'
-  
+
 # 关键：用 @ 读取文件中的 JSON，避免转义问题
 
 # # 设置请求参数

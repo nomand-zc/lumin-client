@@ -31,7 +31,7 @@ const (
 )
 
 type kiroProvider struct {
-	name string
+	name       string
 	httpClient httpclient.HTTPClient
 	options    *Options
 }
@@ -43,8 +43,8 @@ func NewProvider(name string, opts ...Option) *kiroProvider {
 		opt(options)
 	}
 	return &kiroProvider{
-		name:     	name,
-		options:    options,
+		name:    name,
+		options: options,
 		httpClient: httpclient.New(httpclient.WithMiddleware(
 			httpclient.LoggingMiddleware,
 		)),
@@ -62,7 +62,7 @@ func (p *kiroProvider) Type() string {
 }
 
 // GenerateContent generates content.
-func (p *kiroProvider) GenerateContent(ctx context.Context, 
+func (p *kiroProvider) GenerateContent(ctx context.Context,
 	req *providers.Request) (*providers.Response, error) {
 	reader, err := p.GenerateContentStream(ctx, req)
 	if err != nil {
@@ -73,7 +73,7 @@ func (p *kiroProvider) GenerateContent(ctx context.Context,
 	if err := reader.Each(ctx, func(chunk *providers.Response) error {
 		if !acc.AddChunk(chunk) {
 			log.Warnf("[kiroProvider.GenerateContent] failed to accumulate chunk, id mismatch")
-			
+
 		}
 		return nil
 	}); err != nil {
@@ -92,8 +92,8 @@ func (p *kiroProvider) GenerateContent(ctx context.Context,
 }
 
 // GenerateContentStream generates content in a stream.
-func (p *kiroProvider) GenerateContentStream(ctx context.Context, 
-	req *providers.Request) (queue.Consumer[*providers.Response], error){
+func (p *kiroProvider) GenerateContentStream(ctx context.Context,
+	req *providers.Request) (queue.Consumer[*providers.Response], error) {
 	// 1. 初始化调用上下文
 	ctx, inv := providers.EnsureInvocationContext(ctx)
 	inputTokens, err := p.options.tokenConter.CountTokensRange(ctx, req.Messages, 0, len(req.Messages))
@@ -152,10 +152,10 @@ func (p *kiroProvider) GenerateContentStream(ctx context.Context,
 	// 检查状态码
 	if resp.StatusCode != http.StatusOK {
 		return nil, &providers.HTTPError{
-			ErrorType:       providers.ErrorTypeForbidden,
-			ErrorCode:       resp.StatusCode,
-			Message:         fmt.Sprintf("HTTP status code: %d", resp.StatusCode),
-			RawStatusCode:   resp.StatusCode,
+			ErrorType:     providers.ErrorTypeForbidden,
+			ErrorCode:     resp.StatusCode,
+			Message:       fmt.Sprintf("HTTP status code: %d", resp.StatusCode),
+			RawStatusCode: resp.StatusCode,
 		}
 	}
 
@@ -178,7 +178,7 @@ func (p *kiroProvider) handleStreamEvent(ctx context.Context, inv *providers.Inv
 			respBody.Close()
 			log.InfoContextf(ctx, "\n ===== kiro stream event =====: %s", buf.String())
 		}()
-		
+
 		// 收集用量统计信息，最后随 stop 事件一起发送
 		var collectedUsage providers.Usage
 		collectedUsage.PromptTokens = inv.Usage.PromptTokens

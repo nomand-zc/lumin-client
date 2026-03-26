@@ -2,13 +2,13 @@ package geminicli
 
 const (
 	// Gemini 2.5 系列模型
-	GEMINI_2_5_PRO         = "gemini-2.5-pro"
-	GEMINI_2_5_FLASH       = "gemini-2.5-flash"
-	GEMINI_2_5_FLASH_LITE  = "gemini-2.5-flash-lite"
+	GEMINI_2_5_PRO        = "gemini-2.5-pro"
+	GEMINI_2_5_FLASH      = "gemini-2.5-flash"
+	GEMINI_2_5_FLASH_LITE = "gemini-2.5-flash-lite"
 
 	// Gemini 2.0 系列模型
-	GEMINI_2_0_FLASH       = "gemini-2.0-flash"
-	GEMINI_2_0_FLASH_LITE  = "gemini-2.0-flash-lite"
+	GEMINI_2_0_FLASH      = "gemini-2.0-flash"
+	GEMINI_2_0_FLASH_LITE = "gemini-2.0-flash-lite"
 )
 
 // ModelList 列出所有对外公开的模型名称（包含别名）

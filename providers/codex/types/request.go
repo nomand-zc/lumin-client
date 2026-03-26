@@ -88,9 +88,9 @@ type ReasoningContentItem struct {
 
 // ToolFunction 工具函数定义，用于构建请求中的 tools 字段
 type ToolFunction struct {
-	Type     string             `json:"type"`
-	Name     string             `json:"name,omitempty"`
-	Function *ToolFunctionSpec  `json:"function,omitempty"`
+	Type     string            `json:"type"`
+	Name     string            `json:"name,omitempty"`
+	Function *ToolFunctionSpec `json:"function,omitempty"`
 }
 
 // ToolFunctionSpec 工具函数规格

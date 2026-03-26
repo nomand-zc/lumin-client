@@ -72,13 +72,13 @@ func (q *queue[T]) Push(ctx context.Context, item T) error {
 
 // Close 关闭队列
 func (q *queue[T]) Close() error {
-	
+
 	// 使用原子操作确保只关闭一次
 	if atomic.CompareAndSwapUint32(&q.closed, 0, 1) {
 		close(q.c)
 		return nil
 	}
-	
+
 	// 如果已经关闭，返回错误
 	return ErrQueueClosed
 }

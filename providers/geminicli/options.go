@@ -20,7 +20,7 @@ var defaultOptions = Options{
 	endpoint:   DefaultEndpoint,
 	apiVersion: DefaultAPIVersion,
 	headers: map[string]string{
-		"Content-Type":     "application/json",
+		"Content-Type":      "application/json",
 		"X-Goog-Api-Client": GeminiCLIApiClientHeader,
 	},
 }
